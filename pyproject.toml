@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "qly"
+version = "0.1.0"
+description = "Python client for the Qly quantum computing platform — submit circuits to real quantum hardware and poll for results."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Qly" }]
+keywords = ["quantum", "qiskit", "openqasm", "ibm", "ionq", "braket", "qpu"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = ["requests>=2.25"]
+
+[project.optional-dependencies]
+qiskit = ["qiskit>=1.0"]
+dev = ["pytest>=7", "responses>=0.23", "ruff>=0.4", "mypy>=1.8", "types-requests"]
+
+[project.urls]
+Homepage = "https://qly.app"
+Repository = "https://github.com/alyabouzaid/qly-python"
+Issues = "https://github.com/alyabouzaid/qly-python/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/qly"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_ignores = true
+disallow_untyped_defs = true
