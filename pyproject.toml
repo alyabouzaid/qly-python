@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "qly"
-version = "0.1.0"
+version = "0.2.0"
 description = "Python client for the Qly quantum computing platform — submit circuits to real quantum hardware and poll for results."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -23,6 +23,9 @@ dependencies = ["requests>=2.25"]
 [project.optional-dependencies]
 qiskit = ["qiskit>=1.0"]
 dev = ["pytest>=7", "responses>=0.23", "ruff>=0.4", "mypy>=1.8", "types-requests"]
+
+[project.scripts]
+qly = "qly.cli:main"
 
 [project.urls]
 Homepage = "https://qly.app"

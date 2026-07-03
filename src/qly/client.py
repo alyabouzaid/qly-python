@@ -32,9 +32,10 @@ from .exceptions import (
     RateLimitError,
 )
 from .models import Balance, Device, Job, devices_from_json, jobs_from_json
+from .version import __version__
 
 DEFAULT_BASE_URL = "https://qly.app"
-_USER_AGENT = "qly-python/0.1.0"
+_USER_AGENT = f"qly-python/{__version__}"
 
 
 class Qly:

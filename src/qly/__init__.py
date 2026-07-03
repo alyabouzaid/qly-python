@@ -15,8 +15,7 @@ from .exceptions import (
     RateLimitError,
 )
 from .models import Balance, Device, Job
-
-__version__ = "0.1.0"
+from .version import __version__
 
 __all__ = [
     "Qly",

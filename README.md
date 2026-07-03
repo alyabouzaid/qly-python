@@ -39,6 +39,25 @@ print(job.counts)   # {'00': 503, '11': 521}
 `run()` submits and blocks until the job finishes. If you'd rather not block,
 use `submit()` and poll yourself.
 
+## Command line
+
+The package installs a `qly` command, so you can work from a shell without
+writing any Python:
+
+```bash
+qly configure                  # paste your key once; stored in ~/.config/qly/
+qly devices                    # what can I run on?
+qly balance
+
+qly submit bell.qasm --provider ionq --device simulator --shots 1024 --wait
+qly jobs --limit 10            # recent jobs
+qly job <job-id>               # status + measurement histogram
+```
+
+`submit --wait` polls until the job finishes and prints the counts. Every
+command takes `--json` for machine-readable output, and `--api-key` /
+`QLY_API_KEY` override the stored key (useful in CI).
+
 ## Submitting and polling separately
 
 ```python
