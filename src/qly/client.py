@@ -264,5 +264,5 @@ def _circuit_to_qasm(circuit: Any) -> str:
         return str(qasm_method())
     raise QlyError(
         "Could not convert the circuit to OpenQASM. Install qiskit "
-        "(`pip install qly[qiskit]`) or pass qasm= directly."
+        "(`pip install 'qly-sdk[qiskit]'`) or pass qasm= directly."
     )

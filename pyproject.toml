@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "qly"
+name = "qly-sdk"
 version = "0.2.0"
 description = "Python client for the Qly quantum computing platform — submit circuits to real quantum hardware and poll for results."
 readme = "README.md"

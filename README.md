@@ -1,12 +1,15 @@
-# qly
+# qly-sdk
 
 Python client for [Qly](https://qly.app), a quantum computing platform. Write a
 circuit in OpenQASM or Qiskit, submit it to real quantum hardware (IBM, IonQ,
 AWS Braket, Quantinuum, Azure) or a simulator, and pull the results back.
 
 ```bash
-pip install qly
+pip install qly-sdk
 ```
+
+The PyPI name is `qly-sdk`; everything else is just `qly` — you `import qly`
+and the CLI command is `qly`.
 
 ## Getting a key
 
@@ -75,7 +78,7 @@ if job.done:
 
 ## From a Qiskit circuit
 
-Install the extra (`pip install "qly[qiskit]"`) and pass the circuit directly:
+Install the extra (`pip install "qly-sdk[qiskit]"`) and pass the circuit directly:
 
 ```python
 from qiskit import QuantumCircuit
