@@ -91,6 +91,31 @@ def test_estimated_qpu_time_is_not_reported_as_measured():
     assert facts.billed_qpu_seconds == 3.25
 
 
+@responses.activate
+def test_debiased_distribution_is_handed_over_not_announced():
+    """IonQ's mitigated distribution is only useful if you get the numbers."""
+    responses.add(
+        responses.GET,
+        f"{BASE}/api/v1/jobs/ionq",
+        json={
+            "id": "ionq",
+            "status": "COMPLETED",
+            "results": {"counts": {"00": 500, "11": 460, "01": 64}},
+            "run_facts": {"debiased_probabilities": {"00": 0.52, "11": 0.48}},
+        },
+    )
+    job = make_client().get_job("ionq")
+    debiased = job.run_facts.debiased_probabilities
+    assert debiased == {"00": 0.52, "11": 0.48}
+    # It is a separate distribution, not a correction already applied to counts.
+    assert job.counts["01"] == 64
+    assert "01" not in debiased
+
+
+def test_no_debiased_field_when_the_device_sent_none():
+    assert RunFacts.from_json({"shots": 100}).debiased_probabilities == {}
+
+
 def test_two_qubit_gates_counts_known_entanglers_only():
     facts = RunFacts.from_json({"native_gate_counts": {"cz": 14, "ecr": 2, "prx": 40, "rz": 9}})
     assert facts.two_qubit_gates == 16

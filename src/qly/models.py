@@ -169,6 +169,10 @@ class RunFacts:
     #: Gate histogram the device reported itself (IonQ).
     gate_counts: Dict[str, int] = field(default_factory=dict)
     device_warning: Optional[str] = None
+    #: IonQ's error-mitigated distribution, as state -> probability, when it
+    #: sent one. Verbatim from the device: compare it against ``Job.counts``
+    #: rather than treating it as already applied to them.
+    debiased_probabilities: Dict[str, float] = field(default_factory=dict)
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
 
     @property
@@ -201,6 +205,7 @@ class RunFacts:
             rewiring=d.get("rewiring"),
             gate_counts=dict(d.get("gate_counts") or {}),
             device_warning=d.get("device_warning"),
+            debiased_probabilities=dict(d.get("debiased_probabilities") or {}),
             raw=d,
         )
 
