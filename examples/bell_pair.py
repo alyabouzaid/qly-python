@@ -14,6 +14,12 @@ BYOK ("bring your own key") means Qly submits to IBM using credentials you
 stored at https://qly.app/settings/providers, encrypted under KMS. IBM bills
 your account; Qly charges nothing. Without BYOK the same circuit runs on Qly's
 prepaid credit instead, and this script tells you which one is about to happen.
+
+Status, as of 2026-09-19: the simulator leg has been run end to end. The
+--hardware leg has only ever been run against a stub implementing the /api/v1
+contract, never against a QPU, and no credential has yet been stored through
+the BYOK path in production. If you are the first to run it for real and it
+misbehaves, that is worth reporting rather than assuming you held it wrong.
 """
 
 from __future__ import annotations

@@ -220,6 +220,28 @@ python examples/bell_pair.py              # simulator only
 python examples/bell_pair.py --hardware   # also submit to a QPU
 ```
 
+## What has and has not been run against real hardware
+
+Everything in this client is exercised by the test suite, and the simulator
+path has been run end to end. The hardware path has not.
+
+Specifically, as of 2026-09-19:
+
+* `submit`, `get_job`, `wait`, `run`, `devices`, `balance`, `estimate` and
+  `calibration` are covered by tests against a stub that implements the
+  `/api/v1` contract. That proves the client speaks the protocol correctly. It
+  does not prove the protocol's other end behaves as expected on a real device.
+* `examples/bell_pair.py` has been run end to end, both legs, against that same
+  stub. Its hardware leg has never been submitted to a QPU.
+* The BYOK path — running on your own IBM Quantum account rather than Qly's
+  credit — has no production usage at all. Zero credentials have been stored
+  through it, so treat it as unexercised rather than working.
+
+None of this is a known defect; it is an absence of evidence, recorded here
+because a green test suite can otherwise read as a claim it is not making. If
+you are the first to run a circuit on real hardware through this client and it
+misbehaves, that is worth reporting rather than assuming you held it wrong.
+
 ## Configuration
 
 | Argument | Env var | Default |
