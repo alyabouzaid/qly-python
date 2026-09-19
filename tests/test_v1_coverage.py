@@ -74,6 +74,23 @@ def test_run_facts_absent_when_provider_reported_nothing():
     assert facts.two_qubit_gates == 0
 
 
+@responses.activate
+def test_estimated_qpu_time_is_not_reported_as_measured():
+    """Qly's own estimate must not be readable as something the device said."""
+    responses.add(
+        responses.GET,
+        f"{BASE}/api/v1/jobs/est",
+        json={
+            "id": "est",
+            "status": "COMPLETED",
+            "run_facts": {"billed_qpu_seconds": 3.25},
+        },
+    )
+    facts = make_client().get_job("est").run_facts
+    assert facts.qpu_seconds is None
+    assert facts.billed_qpu_seconds == 3.25
+
+
 def test_two_qubit_gates_counts_known_entanglers_only():
     facts = RunFacts.from_json({"native_gate_counts": {"cz": 14, "ecr": 2, "prx": 40, "rz": 9}})
     assert facts.two_qubit_gates == 16

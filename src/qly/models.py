@@ -149,8 +149,12 @@ class RunFacts:
     #: Time on the device itself, in milliseconds, excluding queueing.
     execution_ms: Optional[float] = None
     predicted_ms: Optional[float] = None
-    #: What the account was billed for, on QPU-second devices.
+    #: QPU seconds the device actually reported. None when the provider
+    #: withheld the figure and Qly billed from an estimate instead.
     qpu_seconds: Optional[float] = None
+    #: What the account was billed, measured or not. Equal to qpu_seconds when
+    #: the device reported it; set alone when it did not.
+    billed_qpu_seconds: Optional[float] = None
     #: Queue plus execution, on the provider's own clock.
     queue_and_run_ms: Optional[float] = None
     measured_qubits: List[int] = field(default_factory=list)
@@ -187,6 +191,7 @@ class RunFacts:
             execution_ms=d.get("execution_ms"),
             predicted_ms=d.get("predicted_ms"),
             qpu_seconds=d.get("qpu_seconds"),
+            billed_qpu_seconds=d.get("billed_qpu_seconds"),
             queue_and_run_ms=d.get("queue_and_run_ms"),
             measured_qubits=list(d.get("measured_qubits") or []),
             physical_qubits=list(d.get("physical_qubits") or []),
