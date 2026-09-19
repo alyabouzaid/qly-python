@@ -98,6 +98,16 @@ class Job:
         return self.status.upper() in _FAILED_STATES
 
     @property
+    def run_facts(self) -> "RunFacts":
+        """What the device reported about this run.
+
+        The compiled circuit, which physical qubits it landed on and how long it
+        spent there. Empty until the job finishes, and sparse on devices that
+        publish little — check a field for None rather than assuming it is set.
+        """
+        return RunFacts.from_json(self.raw.get("run_facts"))
+
+    @property
     def counts(self) -> Optional[Dict[str, int]]:
         """Measurement histogram, if the job produced one (Sampler jobs)."""
         if isinstance(self.results, dict):
@@ -121,6 +131,187 @@ class Job:
             estimated_cost_usd=d.get("estimated_cost_usd"),
             cost_cents=d.get("cost_cents"),
             created_at=d.get("created_at"),
+            raw=d,
+        )
+
+
+@dataclass
+class RunFacts:
+    """What the device reported about the run it actually performed.
+
+    Every field is a number a provider measured or a fact it stated. A fact the
+    provider did not report is ``None`` (or an empty dict/list), never a
+    plausible-looking default — ``None`` means "the device did not say", which
+    is not the same as zero.
+    """
+
+    shots: Optional[int] = None
+    #: Time on the device itself, in milliseconds, excluding queueing.
+    execution_ms: Optional[float] = None
+    predicted_ms: Optional[float] = None
+    #: What the account was billed for, on QPU-second devices.
+    qpu_seconds: Optional[float] = None
+    #: Queue plus execution, on the provider's own clock.
+    queue_and_run_ms: Optional[float] = None
+    measured_qubits: List[int] = field(default_factory=list)
+    #: Which physical qubits the vendor's compiler chose.
+    physical_qubits: List[int] = field(default_factory=list)
+    #: The circuit the device actually ran, as native OpenQASM.
+    native_qasm: Optional[str] = None
+    #: Gate histogram of that native circuit.
+    native_gate_counts: Dict[str, int] = field(default_factory=dict)
+    qubits_requested: Optional[int] = None
+    rewiring: Optional[str] = None
+    #: Gate histogram the device reported itself (IonQ).
+    gate_counts: Dict[str, int] = field(default_factory=dict)
+    device_warning: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @property
+    def two_qubit_gates(self) -> int:
+        """How many two-qubit native gates the compiler emitted.
+
+        The usual proxy for how much a NISQ run will be degraded by noise, since
+        entangling gates dominate the error budget. Counts the native names the
+        current providers emit; an unrecognised entangler is not counted, so
+        treat this as a floor.
+        """
+        two_q = {"cz", "cx", "cnot", "ecr", "zz", "rzz", "xx", "ms", "gpi2_2q", "iswap", "swap"}
+        return sum(n for g, n in self.native_gate_counts.items() if g.lower() in two_q)
+
+    @classmethod
+    def from_json(cls, d: Optional[Dict[str, Any]]) -> "RunFacts":
+        d = d or {}
+        return cls(
+            shots=d.get("shots"),
+            execution_ms=d.get("execution_ms"),
+            predicted_ms=d.get("predicted_ms"),
+            qpu_seconds=d.get("qpu_seconds"),
+            queue_and_run_ms=d.get("queue_and_run_ms"),
+            measured_qubits=list(d.get("measured_qubits") or []),
+            physical_qubits=list(d.get("physical_qubits") or []),
+            native_qasm=d.get("native_qasm"),
+            native_gate_counts=dict(d.get("native_gate_counts") or {}),
+            qubits_requested=d.get("qubits_requested"),
+            rewiring=d.get("rewiring"),
+            gate_counts=dict(d.get("gate_counts") or {}),
+            device_warning=d.get("device_warning"),
+            raw=d,
+        )
+
+
+@dataclass
+class Estimate:
+    """What a run will cost, before it runs.
+
+    ``exact`` is the field to branch on. Per-shot and per-task billing is known
+    before the job runs; per-QPU-second billing is not, because nobody knows how
+    long the QPU will hold the circuit until it has. Those devices return
+    ``exact=False`` with a ``cost_range_cents`` and a ``note`` instead of
+    dressing an estimate up as a price.
+    """
+
+    provider: str
+    device: str
+    device_name: Optional[str] = None
+    shots: Optional[int] = None
+    billing: Optional[str] = None
+    exact: bool = False
+    cost_cents: Optional[int] = None
+    cost_usd: Optional[float] = None
+    cost_formatted: Optional[str] = None
+    cost_range_cents: Optional[Dict[str, int]] = None
+    note: Optional[str] = None
+    balance_cents: Optional[int] = None
+    sufficient_balance: Optional[bool] = None
+    warnings: List[str] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_json(cls, d: Dict[str, Any]) -> "Estimate":
+        return cls(
+            provider=d.get("provider", ""),
+            device=d.get("device", ""),
+            device_name=d.get("device_name"),
+            shots=d.get("shots"),
+            billing=d.get("billing"),
+            exact=bool(d.get("exact")),
+            cost_cents=d.get("cost_cents"),
+            cost_usd=d.get("cost_usd"),
+            cost_formatted=d.get("cost_formatted"),
+            cost_range_cents=d.get("cost_range_cents"),
+            note=d.get("note"),
+            balance_cents=d.get("balance_cents"),
+            sufficient_balance=d.get("sufficient_balance"),
+            warnings=list(d.get("warnings") or []),
+            raw=d,
+        )
+
+
+@dataclass
+class CalibrationMetric:
+    """One published number about a device's current health."""
+
+    label: str
+    value: Any
+    unit: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_json(cls, d: Dict[str, Any]) -> "CalibrationMetric":
+        return cls(
+            label=d.get("label", ""),
+            value=d.get("value"),
+            unit=d.get("unit"),
+            raw=d,
+        )
+
+
+@dataclass
+class Calibration:
+    """Live calibration for one device, where the provider publishes it.
+
+    ``source`` says where the numbers came from — ``"simulator"`` means there is
+    no hardware calibration to report, and an empty ``metrics`` list means the
+    provider does not publish any, not that the device is perfect.
+    """
+
+    device: str
+    device_name: Optional[str] = None
+    provider: Optional[str] = None
+    type: Optional[str] = None
+    qubits: Optional[int] = None
+    source: Optional[str] = None
+    fetched_at: Optional[str] = None
+    connectivity: Optional[str] = None
+    technology: Optional[str] = None
+    note: Optional[str] = None
+    metrics: List[CalibrationMetric] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @property
+    def is_live(self) -> bool:
+        """True when the provider published real calibration, not just a spec."""
+        return bool(self.metrics) and self.source not in (None, "simulator", "spec")
+
+    @classmethod
+    def from_json(cls, d: Dict[str, Any]) -> "Calibration":
+        return cls(
+            device=d.get("device", ""),
+            device_name=d.get("device_name"),
+            provider=d.get("provider"),
+            type=d.get("type"),
+            qubits=d.get("qubits"),
+            source=d.get("source"),
+            fetched_at=d.get("fetchedAt") or d.get("fetched_at"),
+            connectivity=d.get("connectivity"),
+            technology=d.get("technology"),
+            note=d.get("note"),
+            metrics=[
+                CalibrationMetric.from_json(m)
+                for m in (d.get("metrics") or [])
+                if isinstance(m, dict)
+            ],
             raw=d,
         )
 

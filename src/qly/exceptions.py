@@ -68,3 +68,17 @@ class APIError(QlyError):
         super().__init__(message)
         self.status_code = status_code
         self.payload = payload
+
+
+class CircuitError(APIError):
+    """The server rejected the request itself, not the account or the platform.
+
+    Raised for 400 and 422: a circuit that will not parse, a gate the device
+    does not implement, a qubit index outside the declared register, a shot
+    count outside the device's published range. ``message`` is the provider's
+    own wording, passed through unchanged, because it names the offending gate
+    or index and nothing this library could write would be more specific.
+
+    Subclasses :class:`APIError`, so code that already catches ``APIError``
+    keeps working. Retrying without changing the request will fail identically.
+    """

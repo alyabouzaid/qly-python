@@ -25,13 +25,22 @@ import requests
 from .exceptions import (
     APIError,
     AuthenticationError,
+    CircuitError,
     InsufficientBalanceError,
     JobFailedError,
     JobTimeoutError,
     QlyError,
     RateLimitError,
 )
-from .models import Balance, Device, Job, devices_from_json, jobs_from_json
+from .models import (
+    Balance,
+    Calibration,
+    Device,
+    Estimate,
+    Job,
+    devices_from_json,
+    jobs_from_json,
+)
 from .version import __version__
 
 DEFAULT_BASE_URL = "https://qly.app"
@@ -120,12 +129,23 @@ class Qly:
         if status == 402:
             est = payload.get("estimatedCents") if isinstance(payload, dict) else None
             bal = payload.get("balanceCents") if isinstance(payload, dict) else None
-            raise InsufficientBalanceError(message, estimated_cents=est, balance_cents=bal)
+            # The server says what the run costs and what is left; the next step
+            # is the part a script cannot work out for itself.
+            raise InsufficientBalanceError(
+                f"{message} Add credit at https://qly.app/pricing, or target a free "
+                f"simulator — see GET /api/v1/devices for which devices cost nothing.",
+                estimated_cents=est,
+                balance_cents=bal,
+            )
         if status == 429:
             retry = None
             if isinstance(payload, dict):
                 retry = payload.get("retryAfterSeconds")
             raise RateLimitError(message, retry_after=retry)
+        if status in (400, 422):
+            # The request is the thing that has to change. Keep the provider's
+            # wording — it names the gate or index that was rejected.
+            raise CircuitError(message, status_code=status, payload=payload)
         raise APIError(message, status_code=status, payload=payload)
 
     # -- Devices & balance --------------------------------------------------
@@ -137,6 +157,54 @@ class Qly:
     def balance(self) -> Balance:
         """Return your current prepaid credit balance."""
         return Balance.from_json(self._request("GET", "/api/v1/balance"))
+
+    def calibration(self, device: Union[str, Device]) -> Calibration:
+        """Live calibration for one device, where the provider publishes it.
+
+        :meth:`devices` answers "what can I target"; this answers "is it any
+        good right now". Pass a device id or a :class:`Device` from
+        :meth:`devices`.
+        """
+        device_id = device.id if isinstance(device, Device) else device
+        return Calibration.from_json(
+            self._request("GET", "/api/v1/calibration", params={"device": device_id})
+        )
+
+    def estimate(
+        self,
+        qasm: Optional[str] = None,
+        *,
+        provider: str,
+        device: str,
+        shots: int = 1024,
+        primitive: str = "sampler",
+        observables: Optional[List[str]] = None,
+        circuit: Optional[Any] = None,
+    ) -> Estimate:
+        """What a run would cost, without submitting anything.
+
+        Prices with the same helpers the submit path bills with, so an estimate
+        and the charge that follows cannot drift apart. Check ``.exact`` before
+        treating ``.cost_cents`` as a price: QPU-second devices can only give a
+        range until the run has happened.
+        """
+        if circuit is not None:
+            if qasm is not None:
+                raise ValueError("Pass either qasm= or circuit=, not both.")
+            qasm = _circuit_to_qasm(circuit)
+
+        body: Dict[str, Any] = {
+            "provider": provider,
+            "device": device,
+            "shots": shots,
+            "primitive": primitive,
+        }
+        if qasm is not None:
+            body["qasm"] = qasm
+        if observables:
+            body["observables"] = observables
+
+        return Estimate.from_json(self._request("POST", "/api/v1/estimate", json=body))
 
     # -- Jobs ---------------------------------------------------------------
 

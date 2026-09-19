@@ -8,23 +8,29 @@ from .client import Qly
 from .exceptions import (
     APIError,
     AuthenticationError,
+    CircuitError,
     InsufficientBalanceError,
     JobFailedError,
     JobTimeoutError,
     QlyError,
     RateLimitError,
 )
-from .models import Balance, Device, Job
+from .models import Balance, Calibration, CalibrationMetric, Device, Estimate, Job, RunFacts
 from .version import __version__
 
 __all__ = [
     "Qly",
     "Job",
+    "RunFacts",
     "Device",
+    "Calibration",
+    "CalibrationMetric",
+    "Estimate",
     "Balance",
     "QlyError",
     "AuthenticationError",
     "InsufficientBalanceError",
+    "CircuitError",
     "RateLimitError",
     "JobFailedError",
     "JobTimeoutError",

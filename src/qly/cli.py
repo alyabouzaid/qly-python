@@ -8,6 +8,8 @@ from a shell without writing Python::
     qly submit bell.qasm --provider ionq --device simulator --wait
     qly job <job-id>
     qly jobs --limit 10
+    qly estimate bell.qasm --provider ionq --device qpu.aria-1 --shots 1000
+    qly calibration ibm_kingston
     qly balance
 
 The API key is resolved in this order: ``--api-key``, the ``QLY_API_KEY``
@@ -28,7 +30,7 @@ from typing import Any, Dict, List, Optional
 
 from .client import DEFAULT_BASE_URL, Qly
 from .exceptions import AuthenticationError, QlyError
-from .models import Device, Job
+from .models import Calibration, Device, Estimate, Job
 from .version import __version__
 
 CONFIG_ENV = "QLY_CONFIG"
@@ -137,8 +139,32 @@ def _print_job(job: Job, as_json: bool) -> None:
         for state in sorted(counts, key=lambda s: -counts[s]):
             n = counts[state]
             print(f"  {state}  {n:>6}  ({100 * n / total:.1f}%)")
+    _print_run_facts(job)
     if job.error:
         print(f"error    {job.error}")
+
+
+def _print_run_facts(job: Job) -> None:
+    """Print what the device reported, omitting anything it did not report."""
+    f = job.run_facts
+    lines = []
+    if f.execution_ms is not None:
+        lines.append(("on device", f"{f.execution_ms:.1f} ms"))
+    if f.qpu_seconds is not None:
+        lines.append(("qpu secs", f"{f.qpu_seconds:.2f}"))
+    if f.physical_qubits:
+        lines.append(("phys qubits", ", ".join(str(q) for q in f.physical_qubits)))
+    if f.native_gate_counts:
+        gates = sorted(f.native_gate_counts.items(), key=lambda kv: -kv[1])
+        lines.append(("native gates", "  ".join(f"{g}×{n}" for g, n in gates)))
+    if f.device_warning:
+        lines.append(("warning", f.device_warning))
+    if not lines:
+        return
+    print("run facts:")
+    width = max(len(k) for k, _ in lines)
+    for key, value in lines:
+        print(f"  {key.ljust(width)}  {value}")
 
 
 # -- Commands ----------------------------------------------------------------
@@ -245,6 +271,61 @@ def _cmd_jobs(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_estimate(args: argparse.Namespace) -> int:
+    qasm = _read_qasm(args.file)
+    est = _make_client(args).estimate(
+        qasm=qasm,
+        provider=args.provider,
+        device=args.device,
+        shots=args.shots,
+    )
+    if args.json:
+        _print_json(est.raw)
+        return 0
+    print(f"device   {est.device_name or est.device} ({est.provider})")
+    print(f"shots    {est.shots}")
+    print(f"billing  {est.billing or 'unknown'}")
+    if est.exact and est.cost_formatted:
+        print(f"cost     {est.cost_formatted}")
+    elif est.cost_range_cents:
+        lo = est.cost_range_cents.get("min", 0) / 100
+        hi = est.cost_range_cents.get("max", 0) / 100
+        print(f"cost     ${lo:.2f}-${hi:.2f} (not exact until the run finishes)")
+    else:
+        print("cost     unavailable")
+    if est.note:
+        print(f"note     {est.note}")
+    if est.sufficient_balance is False:
+        print("balance  not enough credit for this run — https://qly.app/pricing")
+    for w in est.warnings:
+        print(f"warning  {w}")
+    return 0
+
+
+def _cmd_calibration(args: argparse.Namespace) -> int:
+    cal = _make_client(args).calibration(args.device)
+    if args.json:
+        _print_json(cal.raw)
+        return 0
+    print(f"device       {cal.device_name or cal.device} ({cal.provider or '?'})")
+    if cal.qubits:
+        print(f"qubits       {cal.qubits}")
+    if cal.connectivity:
+        print(f"connectivity {cal.connectivity}")
+    if cal.source:
+        print(f"source       {cal.source}")
+    if cal.fetched_at:
+        print(f"fetched      {cal.fetched_at}")
+    if cal.metrics:
+        rows = [[m.label, f"{m.value}{(' ' + m.unit) if m.unit else ''}"] for m in cal.metrics]
+        print(_table(rows, ["METRIC", "VALUE"]))
+    elif cal.note:
+        print(cal.note)
+    else:
+        print("This provider does not publish calibration for that device.")
+    return 0
+
+
 # -- Entry point ---------------------------------------------------------------
 
 
@@ -293,6 +374,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--wait", action="store_true", help="poll until the job finishes")
     p.add_argument("--timeout", type=float, default=600.0, help="max seconds to wait (with --wait)")
     p.set_defaults(func=_cmd_job)
+
+    p = sub.add_parser("estimate", help="price a run without submitting it")
+    _add_common(p)
+    p.add_argument("file", help="path to a .qasm file, or - to read from stdin")
+    p.add_argument("--provider", required=True)
+    p.add_argument("--device", required=True)
+    p.add_argument("--shots", type=int, default=1024)
+    p.set_defaults(func=_cmd_estimate)
+
+    p = sub.add_parser("calibration", help="show a device's live calibration")
+    _add_common(p)
+    p.add_argument("device", help="device id, e.g. ibm_kingston")
+    p.set_defaults(func=_cmd_calibration)
 
     p = sub.add_parser("jobs", help="list your recent jobs")
     _add_common(p)
