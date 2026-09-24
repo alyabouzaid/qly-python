@@ -87,7 +87,7 @@ def test_route_passes_every_option_through_unchanged():
 @responses.activate
 def test_a_missing_prefer_is_the_servers_to_refuse_not_the_clients():
     """No default, no client-side check: the user sees the server's own sentence."""
-    text = 'device "auto" needs prefer: "price" or "queue". (prefer "quality" is not available yet.)'
+    text = 'device "auto" needs prefer: "price", "queue" or "quality".'
     responses.add(responses.POST, f"{BASE}/api/v1/route", json={"error": text}, status=400)
     with pytest.raises(CircuitError) as exc:
         make_client().route(BELL)
@@ -197,6 +197,34 @@ def test_a_price_receipt_has_no_queue_fields():
     assert all(c.price_cents is None and c.price_basis is None for c in r.candidates)
 
 
+# -- prefer="quality" ---------------------------------------------------------------
+#
+# Captured from qly.app 2026-09-24. Quality refuses today, for every circuit, and
+# says why per candidate. No response has yet carried the `measured` evidence
+# object, so it is deliberately not typed; when present it is in Candidate.raw.
+
+
+@pytest.mark.parametrize(
+    "name, code",
+    [("route_quality_refused_2q.json", "no_current_measurements"), ("route_quality_refused_4q.json", "width_not_measured")],
+)
+def test_a_quality_refusal_carries_one_reason_per_candidate_in_the_servers_words(name, code):
+    real = fixture(name)
+    e = None
+    with responses.RequestsMock() as rsps:
+        rsps.add(responses.POST, f"{BASE}/api/v1/route", json=real, status=409)
+        with pytest.raises(RoutingRefusedError) as exc:
+            make_client().route(BELL, prefer="quality")
+        e = exc.value
+    assert e.routing.requested.prefer == "quality"
+    assert e.routing.chosen is None and e.routing.because is None
+    assert all(not c.eligible and c.excluded and c.excluded.text for c in e.routing.candidates)
+    assert code in {c.excluded.code for c in e.routing.candidates}
+    # Verbatim: the SDK does not summarise, translate or merge reasons.
+    for c, raw in zip(e.routing.candidates, real["routing"]["candidates"]):
+        assert c.excluded.text == raw["excluded"]["text"]
+
+
 # -- refusal ---------------------------------------------------------------------
 
 
@@ -243,7 +271,7 @@ def test_a_409_without_the_routing_code_is_an_ordinary_api_error():
 @pytest.mark.parametrize(
     "text",
     [
-        'prefer "quality" is not available yet. Available now: prefer "price" or "queue".',
+        'prefer must be "price", "queue" or "quality" (got "bogus").',
         'provider cannot be combined with device "auto". To restrict which providers are considered, pass providers: ["ibm", ...].',
         'fallback "next" is not available yet. Omit fallback, or pass fallback: "none".',
         'prefer, providers, exclude, max_cost_cents and fallback only apply with device "auto".',

@@ -404,6 +404,10 @@ class Candidate:
     #: charge, which is what breaks a tie on queue. Absent for other preferences.
     price_cents: Optional[float] = None
     price_basis: Optional[str] = None
+    # prefer="quality" adds a `measured` evidence object to an eligible candidate.
+    # It is not typed here because no response has carried one yet (quality
+    # refuses for every circuit so far), and a shape taken from a description is
+    # a guess. When present it is in ``raw["measured"]``, unchanged.
     vendor_billed: Optional[Dict[str, Any]] = None
     excluded: Optional[Exclusion] = None
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
