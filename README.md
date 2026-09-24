@@ -6,10 +6,24 @@ AWS Braket, Quantinuum, Azure) or a simulator, and pull the results back.
 
 ```bash
 pip install qly-sdk
+export QLY_API_KEY=qly_live_...   # the key from your API Keys page
 ```
 
 The PyPI name is `qly-sdk`; everything else is just `qly` — you `import qly`
 and the CLI command is `qly`.
+
+### In Google Colab
+
+Install with `!pip` and ask for the key when the cell runs, so it never sits in
+the notebook text you might share. Add the `[qiskit]` extra if you will pass
+Qiskit circuits.
+
+```python
+!pip install -q "qly-sdk[qiskit]"
+
+import getpass, os
+os.environ["QLY_API_KEY"] = getpass.getpass("Qly API key: ")
+```
 
 ## Getting a key
 
@@ -23,7 +37,7 @@ on the billing page.
 ```python
 from qly import Qly
 
-client = Qly(api_key="qly_live_...")   # or set QLY_API_KEY in your environment
+client = Qly()   # reads QLY_API_KEY
 
 bell = """
 OPENQASM 2.0;
@@ -35,12 +49,22 @@ cx q[0], q[1];
 measure q -> c;
 """
 
-job = client.run(bell, provider="ibm", device="ibm_kingston", shots=1024)
+job = client.run(bell, provider="clifft", device="clifft-sim", shots=1024)
 print(job.counts)   # {'00': 503, '11': 521}
 ```
 
 `run()` submits and blocks until the job finishes. If you'd rather not block,
 use `submit()` and poll yourself.
+
+For real hardware, change `provider` and `device` to an id from
+`client.devices()`. Real QPUs queue and cost credit; simulators are free and the
+code path is identical, so iterate on a simulator first.
+
+Two free simulators are listed. `clifft-sim` draws random shots, so counts vary
+between runs like a real device, and it accepts any gate. `ionq` / `simulator`
+reports the ideal probabilities scaled to your shot count, so repeated runs
+match exactly, and it accepts a smaller gate set: anything it cannot run is
+refused with a message naming the instruction rather than skipped.
 
 ## Command line
 
@@ -48,27 +72,53 @@ The package installs a `qly` command, so you can work from a shell without
 writing any Python:
 
 ```bash
-qly configure                  # paste your key once; stored in ~/.config/qly/
+export QLY_API_KEY=qly_live_...
+
+cat > bell.qasm <<'EOF'
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[2];
+h q[0];
+cx q[0], q[1];
+measure q -> c;
+EOF
+
 qly devices                    # what can I run on?
 qly balance
-
-qly submit bell.qasm --provider ionq --device simulator --shots 1024 --wait
+qly submit bell.qasm --provider clifft --device clifft-sim --shots 1024 --wait
 qly jobs --limit 10            # recent jobs
-qly job <job-id>               # status + measurement histogram
+qly job <job-id>               # status + histogram; the id is printed by submit
 
-qly estimate bell.qasm --provider ionq --device qpu.aria-1 --shots 1000
-qly calibration ibm_kingston   # is this device any good right now?
+qly estimate bell.qasm --provider clifft --device clifft-sim --shots 1024
+qly calibration clifft-sim     # live calibration where a provider publishes it
 ```
 
 `submit --wait` polls until the job finishes and prints the counts. Every
 command takes `--json` for machine-readable output, and `--api-key` /
-`QLY_API_KEY` override the stored key (useful in CI).
+`QLY_API_KEY` override the stored key (useful in CI). `qly configure` stores the
+key in `~/.config/qly/` from a terminal; it prompts for the key, so in a
+notebook use the environment variable instead.
 
 ## Submitting and polling separately
 
 ```python
-job = client.submit(bell, provider="ibm", device="ibm_kingston", shots=1024)
-print(job.id, job.status)        # 'd4a…', 'PENDING'
+from qly import Qly
+
+client = Qly()
+
+bell = """
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[2];
+h q[0];
+cx q[0], q[1];
+measure q -> c;
+"""
+
+job = client.submit(bell, provider="clifft", device="clifft-sim", shots=1024)
+print(job.id, job.status)        # a QPU that is still queued shows 'PENDING' here
 
 job = client.wait(job)           # blocks until terminal, raises on failure
 print(job.counts)
@@ -87,23 +137,27 @@ Install the extra (`pip install "qly-sdk[qiskit]"`) and pass the circuit directl
 from qiskit import QuantumCircuit
 from qly import Qly
 
-qc = QuantumCircuit(2, 2)
-qc.h(0)
-qc.cx(0, 1)
-qc.measure([0, 1], [0, 1])
+# Four qubits, each in an equal superposition, all measured: 16 outcomes.
+qc = QuantumCircuit(4, 4)
+qc.h(range(4))
+qc.measure(range(4), range(4))
 
 client = Qly()
-job = client.run(circuit=qc, provider="ionq", device="simulator", shots=512)
-print(job.counts)
+job = client.run(circuit=qc, provider="clifft", device="clifft-sim", shots=1024)
+print(job.counts)   # 16 four-bit strings, about 64 shots each
 ```
 
 ## Listing devices and checking balance
 
 ```python
+from qly import Qly
+
+client = Qly()
+
 for d in client.devices():
     print(d.provider, d.id, d.qubits, "sim" if d.is_simulator else "qpu")
 
-print(client.balance().formatted)   # '$12.40'
+print(client.balance().formatted)   # '$5.00'
 ```
 
 ## Estimator (expectation values)
@@ -111,13 +165,26 @@ print(client.balance().formatted)   # '$12.40'
 For IBM, you can ask for Pauli expectation values instead of shot counts:
 
 ```python
+from qly import Qly
+
+client = Qly()
+
+ansatz_qasm = """
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[2];
+ry(0.6) q[0];
+cx q[0], q[1];
+"""
+
 job = client.run(
     ansatz_qasm,
     provider="ibm",
-    device="ibm_kingston",
+    device="ibm_marrakesh",   # any IBM id from client.devices()
     primitive="estimator",
     observables=["ZZ", "IZ", "ZI"],
-    shots=4096,
+    shots=512,
 )
 print(job.results)   # {'evs': [...], 'stds': [...]}
 ```
@@ -129,7 +196,22 @@ provider measured — and only what it measured: a fact the device did not
 publish is `None`, which is not the same as zero.
 
 ```python
-job = client.run(bell_qasm, provider="ibm", device="ibm_kingston")
+from qly import Qly
+
+client = Qly()
+
+bell = """
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[2];
+h q[0];
+cx q[0], q[1];
+measure q -> c;
+"""
+
+# A real QPU: this spends credit. On a simulator most of these are None.
+job = client.run(bell, provider="ibm", device="ibm_marrakesh", shots=1024)
 
 f = job.run_facts
 print(f.execution_ms)        # time on the device, excluding queueing
@@ -146,9 +228,23 @@ print(f.native_qasm)         # the circuit the device really ran
 bills with, so an estimate and the charge that follows cannot drift apart.
 
 ```python
-est = client.estimate(bell_qasm, provider="ionq", device="qpu.aria-1", shots=1000)
+from qly import Qly
+
+client = Qly()
+
+bell = """
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[2];
+h q[0];
+cx q[0], q[1];
+measure q -> c;
+"""
+
+est = client.estimate(bell, provider="ibm", device="ibm_marrakesh", shots=1024)
 if est.exact:
-    print(est.cost_formatted)       # '$30.00'
+    print(est.cost_formatted)       # e.g. '$0.82'
 else:
     print(est.cost_range_cents)     # per-QPU-second devices can only give a range
     print(est.note)                 # ...and say why
@@ -165,7 +261,11 @@ how long the QPU will hold the circuit until it has.
 good right now" — which qubit count alone will not tell you.
 
 ```python
-cal = client.calibration("ibm_kingston")
+from qly import Qly
+
+client = Qly()
+
+cal = client.calibration("ibm_marrakesh")
 print(cal.connectivity)      # 'heavy-hex lattice'
 for m in cal.metrics:
     print(m.label, m.value, m.unit or "")
@@ -187,10 +287,22 @@ no calibration; an empty `metrics` list means "not published", not "perfect".
 | `APIError` | anything else; `.status_code`, `.payload` |
 
 ```python
-from qly import InsufficientBalanceError
+from qly import Qly, InsufficientBalanceError
+
+client = Qly()
+
+bell = """
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[2];
+h q[0];
+cx q[0], q[1];
+measure q -> c;
+"""
 
 try:
-    client.run(circuit, provider="ibm", device="ibm_kingston")
+    client.run(bell, provider="ibm", device="ibm_marrakesh", shots=1024)
 except InsufficientBalanceError as e:
     print(f"Need ~{e.estimated_cents}¢, have {e.balance_cents}¢")
 ```
@@ -200,24 +312,39 @@ provider's own wording, which names the gate or index it rejected, and the same
 request will fail identically every time.
 
 ```python
-from qly import CircuitError
+from qly import Qly, CircuitError
+
+client = Qly()
+
+# `crx` is not something the IonQ simulator can run; the refusal names it.
+qasm = """
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[2];
+h q[0];
+crx(pi/2) q[0], q[1];
+measure q -> c;
+"""
 
 try:
-    client.run(circuit, provider="ibm", device="ibm_kingston")
+    client.run(qasm, provider="ionq", device="simulator", shots=100)
 except CircuitError as e:
-    print(f"Fix the circuit: {e}")   # "Cannot find gate 'cccx' in the basis"
+    print(f"Fix the circuit: {e}")   # "... cannot run an instruction in this circuit: `crx(pi/2) q[0],q[1];` ..."
 ```
 
 ## A worked example
 
 [`examples/bell_pair.py`](examples/bell_pair.py) runs a Bell pair on a free
 simulator, then the same circuit on a real QPU — checking calibration and
-pricing the run first. The hardware leg is opt-in behind `--hardware`.
+pricing the run first. The hardware leg is opt-in behind `--hardware` and needs
+`--device`: the script does not pick a machine for you, because queues and each
+machine's readings change; choose from `client.devices()` or qly.app/router.
 
 ```bash
 export QLY_API_KEY=qly_live_...
 python examples/bell_pair.py              # simulator only
-python examples/bell_pair.py --hardware   # also submit to a QPU
+python examples/bell_pair.py --hardware --device ibm_marrakesh   # also submit to a QPU
 ```
 
 ## What has and has not been run against real hardware
@@ -225,7 +352,12 @@ python examples/bell_pair.py --hardware   # also submit to a QPU
 Everything in this client is exercised by the test suite, and the simulator
 path has been run end to end. The hardware path has not.
 
-Specifically, as of 2026-09-19:
+Specifically, as of 2026-09-24:
+
+* The Colab path, `pip install "qly-sdk[qiskit]"` in a clean Python 3.11 and
+  3.12 virtualenv followed by `run()` on the two free simulators, has been run
+  against qly.app with the published 0.2.0. It was not run inside an actual
+  Google Colab runtime, which preinstalls its own numpy and scipy.
 
 * `submit`, `get_job`, `wait`, `run`, `devices`, `balance`, `estimate` and
   `calibration` are covered by tests against a stub that implements the

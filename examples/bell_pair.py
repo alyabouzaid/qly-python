@@ -4,7 +4,7 @@
     pip install qly-sdk
     export QLY_API_KEY=qly_live_...        # from https://qly.app/settings/api-keys
     python bell_pair.py                    # simulator only
-    python bell_pair.py --hardware         # also submit to a real QPU
+    python bell_pair.py --hardware --device ibm_marrakesh   # also submit to a real QPU
 
 The simulator leg is free and runs unattended. The hardware leg is opt-in
 because it either spends credit or runs against your own IBM Quantum account,
@@ -76,30 +76,48 @@ def show(job) -> None:
 
 
 def pick_simulator(client: Qly):
-    """The first configured simulator that costs nothing."""
+    """A free simulator, preferring one that samples.
+
+    clifft-sim draws random shots, so counts vary from run to run like a real
+    device. ionq/simulator returns the ideal probabilities scaled to the shot
+    count, so it gives the same histogram every time, which is the wrong thing
+    to compare a noisy hardware run against.
+    """
     sims = [d for d in client.devices() if d.is_simulator and not d.raw.get("access_required")]
     if not sims:
         sys.exit("No simulator available to this account.")
-    # Prefer one that advertises no price at all.
     free = [d for d in sims if not d.price or "free" in str(d.price).lower()]
+    for d in free:
+        if d.provider == "clifft":
+            return d
     return (free or sims)[0]
 
 
-def pick_qpu(client: Qly):
-    """The smallest real IBM device this account may target."""
+def pick_qpu(client: Qly, device_id):
+    """The IBM device the caller named, or a list of the choices.
+
+    The machine is deliberately not chosen here. Queues and each machine's
+    readings change from day to day, so the caller picks from client.devices()
+    or qly.app/router on the day, and this script does not guess for them.
+    """
     qpus = [
         d
         for d in client.devices()
         if not d.is_simulator and d.provider == "ibm" and not d.raw.get("access_required")
     ]
-    if not qpus:
-        return None
-    return sorted(qpus, key=lambda d: d.qubits or 0)[0]
+    if device_id is None:
+        ids = ", ".join(d.id for d in qpus) or "none available to this account"
+        sys.exit(f"--hardware needs --device. IBM devices: {ids}. See also https://qly.app/router")
+    for d in qpus:
+        if d.id == device_id:
+            return d
+    return None
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--hardware", action="store_true", help="also run on a real QPU")
+    parser.add_argument("--hardware", action="store_true", help="also run on a real QPU (needs --device)")
+    parser.add_argument("--device", help="IBM device id for --hardware, e.g. one listed by client.devices()")
     parser.add_argument("--shots", type=int, default=1024)
     args = parser.parse_args()
     # One guard around everything that talks to the API. A bad key fails on the
@@ -127,10 +145,10 @@ def run(args: argparse.Namespace) -> int:
         return 0
 
     # -- hardware ----------------------------------------------------------
-    qpu = pick_qpu(client)
+    qpu = pick_qpu(client, args.device)
     if qpu is None:
-        print("\nNo IBM QPU available to this account.")
-        print("Connect your IBM Quantum account at https://qly.app/settings/providers.")
+        print(f"\nNo IBM QPU called {args.device!r} is available to this account.")
+        print("List them with client.devices(), or connect your IBM Quantum account at https://qly.app/settings/providers.")
         return 1
 
     print(f"\nQPU: {qpu.name} ({qpu.qubits} qubits, status {qpu.status})")
