@@ -98,6 +98,15 @@ class Job:
         return self.status.upper() in _FAILED_STATES
 
     @property
+    def routing(self) -> Optional["Routing"]:
+        """The receipt for a job submitted with ``device="auto"``, else None.
+
+        Absent on every job that was not auto-routed, including every job from
+        before the receipt existed.
+        """
+        return Routing.from_json(self.raw.get("routing"))
+
+    @property
     def run_facts(self) -> "RunFacts":
         """What the device reported about this run.
 
@@ -322,6 +331,205 @@ class Calibration:
                 for m in (d.get("metrics") or [])
                 if isinstance(m, dict)
             ],
+            raw=d,
+        )
+
+
+
+
+# -- device="auto" ---------------------------------------------------------------
+#
+# These mirror the receipt the server returns (docs/router/device-auto.md and the
+# Routing / Candidate types in src/lib/router-auto.ts), field for field.
+#
+# Three rules, all of them Router's, and none of them are optional here:
+#
+#   * Nothing is computed, sorted, defaulted or reworded. Every sentence in a
+#     receipt is written by the server (``because.text``, ``excluded.text``) and
+#     is shown as sent.
+#   * ``None`` means the server did not send the field, which is not the same as
+#     zero or "no". Inside ``requested``, ``None`` means the caller did not
+#     specify it. Unknown is always absent, never null.
+#   * There is no score, rank or best field, and this class adds none. The
+#     candidate list is ordered by the quantity you asked for, for this request
+#     only. It is not a standing table.
+
+
+def _opt_int_list(v: Any) -> Optional[List[int]]:
+    return None if v is None else [int(x) for x in v]
+
+
+@dataclass
+class Exclusion:
+    """Why a route cannot take this job. Branch on ``code``; show ``text`` as is."""
+
+    code: str
+    text: str
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_json(cls, d: Optional[Dict[str, Any]]) -> Optional["Exclusion"]:
+        if not isinstance(d, dict):
+            return None
+        return cls(code=str(d.get("code", "")), text=str(d.get("text", "")), raw=d)
+
+
+@dataclass
+class Candidate:
+    """One route to one machine, as compared for this request.
+
+    ``eligible`` is True exactly when ``excluded`` is None, and a value is present
+    exactly when eligible; the server enforces both. ``vendor_billed`` is a fact
+    about what the vendor has billed Qly for jobs like this. It is never a price
+    and is never what ``value`` was computed from.
+    """
+
+    machine: str
+    machine_name: Optional[str] = None
+    route: Optional[str] = None
+    route_name: Optional[str] = None
+    device: Optional[str] = None
+    eligible: bool = False
+    value: Optional[float] = None
+    unit: Optional[str] = None
+    #: "exact" or "estimate". For an estimate, ``range_cents`` is [low, high].
+    basis: Optional[str] = None
+    range_cents: Optional[List[int]] = None
+    #: "qly" (your Qly credit) or "vendor_account" (billed elsewhere, to your own account).
+    billed_by: Optional[str] = None
+    vendor_billed: Optional[Dict[str, Any]] = None
+    excluded: Optional[Exclusion] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_json(cls, d: Dict[str, Any]) -> "Candidate":
+        return cls(
+            machine=str(d.get("machine", "")),
+            machine_name=d.get("machine_name"),
+            route=d.get("route"),
+            route_name=d.get("route_name"),
+            device=d.get("device"),
+            eligible=bool(d.get("eligible")),
+            value=d.get("value"),
+            unit=d.get("unit"),
+            basis=d.get("basis"),
+            range_cents=_opt_int_list(d.get("range_cents")),
+            billed_by=d.get("billed_by"),
+            vendor_billed=d.get("vendor_billed"),
+            excluded=Exclusion.from_json(d.get("excluded")),
+            raw=d,
+        )
+
+
+@dataclass
+class Chosen:
+    """The route Qly chose. ``initial_layout`` None means default placement."""
+
+    machine: str
+    provider: str
+    device: str
+    device_name: Optional[str] = None
+    initial_layout: Optional[List[int]] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_json(cls, d: Optional[Dict[str, Any]]) -> Optional["Chosen"]:
+        if not isinstance(d, dict):
+            return None
+        return cls(
+            machine=str(d.get("machine", "")),
+            provider=str(d.get("provider", "")),
+            device=str(d.get("device", "")),
+            device_name=d.get("device_name"),
+            initial_layout=_opt_int_list(d.get("initial_layout")),
+            raw=d,
+        )
+
+
+@dataclass
+class Because:
+    """What the choice was made on. Print ``text``; it is the server's sentence."""
+
+    metric: str
+    value: Optional[float] = None
+    unit: Optional[str] = None
+    basis: Optional[str] = None
+    source: Optional[str] = None
+    #: True when candidates tied on the requested quantity and a tie-break decided.
+    tie: Optional[bool] = None
+    text: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_json(cls, d: Optional[Dict[str, Any]]) -> Optional["Because"]:
+        if not isinstance(d, dict):
+            return None
+        return cls(
+            metric=str(d.get("metric", "")),
+            value=d.get("value"),
+            unit=d.get("unit"),
+            basis=d.get("basis"),
+            source=d.get("source"),
+            tie=d.get("tie"),
+            text=str(d.get("text", "")),
+            raw=d,
+        )
+
+
+@dataclass
+class RoutingRequest:
+    """What was asked. ``None`` in any field means the caller did not specify it."""
+
+    device: Optional[str] = None
+    prefer: Optional[str] = None
+    providers: Optional[List[str]] = None
+    exclude: Optional[List[str]] = None
+    max_cost_cents: Optional[int] = None
+    fallback: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_json(cls, d: Optional[Dict[str, Any]]) -> "RoutingRequest":
+        d = d if isinstance(d, dict) else {}
+        return cls(
+            device=d.get("device"),
+            prefer=d.get("prefer"),
+            providers=d.get("providers"),
+            exclude=d.get("exclude"),
+            max_cost_cents=d.get("max_cost_cents"),
+            fallback=d.get("fallback"),
+            raw=d,
+        )
+
+
+@dataclass
+class Routing:
+    """The receipt for a ``device="auto"`` decision.
+
+    ``chosen`` and ``because`` are None when nothing was eligible, which is the
+    case for a refusal; ``candidates`` then says why for every route.
+    """
+
+    requested: RoutingRequest
+    decided_at: Optional[str] = None
+    chosen: Optional[Chosen] = None
+    because: Optional[Because] = None
+    candidates: List[Candidate] = field(default_factory=list)
+    #: Each attempt as the server sent it, ``{"route": ..., "outcome": ...}``.
+    attempts: List[Dict[str, Any]] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_json(cls, d: Optional[Dict[str, Any]]) -> Optional["Routing"]:
+        if not isinstance(d, dict):
+            return None
+        return cls(
+            requested=RoutingRequest.from_json(d.get("requested")),
+            decided_at=d.get("decided_at"),
+            chosen=Chosen.from_json(d.get("chosen")),
+            because=Because.from_json(d.get("because")),
+            candidates=[Candidate.from_json(c) for c in (d.get("candidates") or []) if isinstance(c, dict)],
+            attempts=list(d.get("attempts") or []),
             raw=d,
         )
 

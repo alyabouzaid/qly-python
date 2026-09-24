@@ -79,6 +79,33 @@ class CircuitError(APIError):
     own wording, passed through unchanged, because it names the offending gate
     or index and nothing this library could write would be more specific.
 
+    Also raised for a parameter combination the server rejects, such as
+    ``provider`` together with ``device="auto"``; the message says which.
+
     Subclasses :class:`APIError`, so code that already catches ``APIError``
     keeps working. Retrying without changing the request will fail identically.
     """
+
+
+class RoutingRefusedError(APIError):
+    """``device="auto"`` found no route it could submit to.
+
+    Raised on a 409 with ``code: "routing_refused"``. ``routing`` is the whole
+    receipt: every candidate, each with the reason it was excluded, so the fix
+    (raise ``max_cost_cents``, drop an exclusion, choose fewer qubits) is in the
+    exception and not in the log.
+
+    Subclasses :class:`APIError`, so existing handlers keep working. It is not a
+    :class:`CircuitError`: the circuit is fine, and no machine could take it
+    under the constraints given.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        status_code: Optional[int] = None,
+        payload: Any = None,
+        routing: Any = None,
+    ) -> None:
+        super().__init__(message, status_code=status_code, payload=payload)
+        self.routing = routing

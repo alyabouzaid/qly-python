@@ -31,6 +31,7 @@ from .exceptions import (
     JobTimeoutError,
     QlyError,
     RateLimitError,
+    RoutingRefusedError,
 )
 from .models import (
     Balance,
@@ -38,6 +39,7 @@ from .models import (
     Device,
     Estimate,
     Job,
+    Routing,
     devices_from_json,
     jobs_from_json,
 )
@@ -142,6 +144,14 @@ class Qly:
             if isinstance(payload, dict):
                 retry = payload.get("retryAfterSeconds")
             raise RateLimitError(message, retry_after=retry)
+        if status == 409 and isinstance(payload, dict) and payload.get("code") == "routing_refused":
+            # Nothing was eligible. The receipt says why, route by route.
+            raise RoutingRefusedError(
+                message,
+                status_code=status,
+                payload=payload,
+                routing=Routing.from_json(payload.get("routing")),
+            )
         if status in (400, 422):
             # The request is the thing that has to change. Keep the provider's
             # wording — it names the gate or index that was rejected.
@@ -212,7 +222,7 @@ class Qly:
         self,
         qasm: Optional[str] = None,
         *,
-        provider: str,
+        provider: Optional[str] = None,
         device: str,
         shots: int = 1024,
         primitive: str = "sampler",
@@ -221,8 +231,19 @@ class Qly:
         qiskit: Optional[str] = None,
         ionq_native: Optional[Dict[str, Any]] = None,
         device_name: Optional[str] = None,
+        prefer: Optional[str] = None,
+        providers: Optional[List[str]] = None,
+        exclude: Optional[List[str]] = None,
+        max_cost_cents: Optional[int] = None,
+        fallback: Optional[str] = None,
     ) -> Job:
         """Submit a circuit and return immediately with a queued :class:`Job`.
+
+        With ``device="auto"`` Qly picks the machine: pass ``prefer`` and leave
+        ``provider`` out. See :meth:`route` to see the decision without
+        submitting. ``prefer``, ``providers``, ``exclude``, ``max_cost_cents``
+        and ``fallback`` are sent as given and only when given, with no default
+        here, so a missing ``prefer`` reaches the server and you see its message.
 
         Provide the circuit in exactly one of these ways:
 
@@ -245,12 +266,13 @@ class Qly:
             raise ValueError("primitive='estimator' requires observables, e.g. ['ZZ'].")
 
         body: Dict[str, Any] = {
-            "provider": provider,
             "device": device,
             "shots": shots,
             "primitive": primitive,
             "observables": observables or [],
         }
+        if provider is not None:
+            body["provider"] = provider
         if qasm is not None:
             body["qasm"] = qasm
         if qiskit is not None:
@@ -259,8 +281,50 @@ class Qly:
             body["ionq_native"] = ionq_native
         if device_name is not None:
             body["device_name"] = device_name
+        body.update(_routing_fields(prefer, providers, exclude, max_cost_cents, fallback))
 
         return Job.from_json(self._request("POST", "/api/v1/jobs", json=body))
+
+    def route(
+        self,
+        qasm: Optional[str] = None,
+        *,
+        circuit: Optional[Any] = None,
+        shots: int = 1024,
+        prefer: Optional[str] = None,
+        providers: Optional[List[str]] = None,
+        exclude: Optional[List[str]] = None,
+        max_cost_cents: Optional[int] = None,
+        fallback: Optional[str] = None,
+    ) -> Routing:
+        """Decide where ``device="auto"`` would run a circuit, and say why.
+
+        Submits nothing and charges nothing. Returns the receipt: the route
+        chosen, the sentence saying what it was chosen on
+        (``routing.because.text``), and every candidate with either its number or
+        the reason it was excluded.
+
+        Raises :class:`RoutingRefusedError` when no route is eligible; the
+        exception carries the same receipt as ``.routing``.
+
+        Nothing here scores or ranks machines and no default is applied for
+        ``prefer``: leave it out and the server says so.
+        """
+        if circuit is not None:
+            if qasm is not None:
+                raise ValueError("Pass either qasm= or circuit=, not both.")
+            qasm = _circuit_to_qasm(circuit)
+
+        body: Dict[str, Any] = {"device": "auto", "shots": shots}
+        if qasm is not None:
+            body["qasm"] = qasm
+        body.update(_routing_fields(prefer, providers, exclude, max_cost_cents, fallback))
+
+        payload = self._request("POST", "/api/v1/route", json=body)
+        routing = Routing.from_json(payload.get("routing"))
+        if routing is None:
+            raise QlyError("The server answered /api/v1/route without a routing receipt.")
+        return routing
 
     def get_job(self, job: Union[str, Job]) -> Job:
         """Fetch the latest status and results for a job."""
@@ -316,6 +380,32 @@ class Qly:
         """
         job = self.submit(qasm, **submit_kwargs)
         return self.wait(job, poll_interval=poll_interval, timeout=timeout)
+
+
+def _routing_fields(
+    prefer: Optional[str],
+    providers: Optional[List[str]],
+    exclude: Optional[List[str]],
+    max_cost_cents: Optional[int],
+    fallback: Optional[str],
+) -> Dict[str, Any]:
+    """The ``device="auto"`` fields, only those the caller gave, unchanged.
+
+    No defaults and no checks. A missing ``prefer`` is the server's to refuse, so
+    that there is one statement of the rule and it is the server's own.
+    """
+    fields: Dict[str, Any] = {}
+    if prefer is not None:
+        fields["prefer"] = prefer
+    if providers is not None:
+        fields["providers"] = providers
+    if exclude is not None:
+        fields["exclude"] = exclude
+    if max_cost_cents is not None:
+        fields["max_cost_cents"] = max_cost_cents
+    if fallback is not None:
+        fields["fallback"] = fallback
+    return fields
 
 
 def _circuit_to_qasm(circuit: Any) -> str:

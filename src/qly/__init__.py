@@ -14,8 +14,23 @@ from .exceptions import (
     JobTimeoutError,
     QlyError,
     RateLimitError,
+    RoutingRefusedError,
 )
-from .models import Balance, Calibration, CalibrationMetric, Device, Estimate, Job, RunFacts
+from .models import (
+    Balance,
+    Because,
+    Calibration,
+    CalibrationMetric,
+    Candidate,
+    Chosen,
+    Device,
+    Estimate,
+    Exclusion,
+    Job,
+    Routing,
+    RoutingRequest,
+    RunFacts,
+)
 from .version import __version__
 
 __all__ = [
@@ -31,6 +46,13 @@ __all__ = [
     "AuthenticationError",
     "InsufficientBalanceError",
     "CircuitError",
+    "RoutingRefusedError",
+    "Routing",
+    "RoutingRequest",
+    "Candidate",
+    "Chosen",
+    "Because",
+    "Exclusion",
     "RateLimitError",
     "JobFailedError",
     "JobTimeoutError",

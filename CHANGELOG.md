@@ -28,6 +28,13 @@ the client side of it. None of it is needed to run a circuit: the Colab path
   `qly job` output.
 - `examples/bell_pair.py`.
 
+- `device="auto"`: `run()` and `submit()` take `prefer`, `providers`, `exclude`,
+  `max_cost_cents` and `fallback`, `provider` is optional, `route()` decides
+  without submitting, and `Job.routing` is the receipt. `RoutingRefusedError`
+  carries the receipt when nothing is eligible. Passed through as the server
+  sends it: no default for `prefer`, no client-side checks, no wording of its
+  own, and no score, rank or best.
+
 ### Changed
 
 - `InsufficientBalanceError` messages now say what to do next.
@@ -36,4 +43,4 @@ the client side of it. None of it is needed to run a circuit: the Colab path
 ### Not in this release
 
 - `initial_layout` on `run()` / `submit()`. It waits on `/api/v1` accepting the
-  field; nothing on the server takes it yet.
+  field; nothing on the server takes it yet. (`device="auto"` rejects it.)

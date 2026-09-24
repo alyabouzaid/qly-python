@@ -1,0 +1,150 @@
+{
+ "error": "No route can take this job: every one of the 11 routes Qly has was excluded. Each candidate in routing says why.",
+ "code": "routing_refused",
+ "routing": {
+  "requested": {
+   "device": "auto",
+   "prefer": "price",
+   "providers": null,
+   "exclude": null,
+   "max_cost_cents": 1,
+   "fallback": "none"
+  },
+  "decided_at": "2026-09-24T13:17:47.287Z",
+  "candidates": [
+   {
+    "machine": "aqt-ibex-q1",
+    "machine_name": "IBEX Q1",
+    "route": "aws",
+    "route_name": "AWS Braket",
+    "device": "arn:aws:braket:eu-north-1::device/qpu/aqt/Ibex-Q1",
+    "eligible": false,
+    "excluded": {
+     "code": "window_closed",
+     "text": "Outside its execution window; it reopens in about 18.7 h."
+    }
+   },
+   {
+    "machine": "ibm-fez",
+    "machine_name": "IBM Fez",
+    "route": "ibm",
+    "route_name": "IBM Quantum",
+    "device": "ibm_fez",
+    "eligible": false,
+    "excluded": {
+     "code": "over_max_cost",
+     "text": "82 cents, over your limit of 1 cent."
+    }
+   },
+   {
+    "machine": "ibm-kingston",
+    "machine_name": "IBM Kingston",
+    "route": "ibm",
+    "route_name": "IBM Quantum",
+    "device": "ibm_kingston",
+    "eligible": false,
+    "excluded": {
+     "code": "over_max_cost",
+     "text": "82 cents, over your limit of 1 cent."
+    }
+   },
+   {
+    "machine": "ibm-marrakesh",
+    "machine_name": "IBM Marrakesh",
+    "route": "ibm",
+    "route_name": "IBM Quantum",
+    "device": "ibm_marrakesh",
+    "eligible": false,
+    "excluded": {
+     "code": "over_max_cost",
+     "text": "82 cents, over your limit of 1 cent."
+    }
+   },
+   {
+    "machine": "ionq-forte-1",
+    "machine_name": "Forte 1",
+    "route": "aws",
+    "route_name": "AWS Braket",
+    "device": "arn:aws:braket:us-east-1::device/qpu/ionq/Forte-1",
+    "eligible": false,
+    "excluded": {
+     "code": "offline",
+     "text": "Offline now, as reported by AWS Braket."
+    }
+   },
+   {
+    "machine": "ionq-forte-1",
+    "machine_name": "Forte 1",
+    "route": "ionq",
+    "route_name": "IonQ",
+    "device": "qpu.forte-1",
+    "eligible": false,
+    "excluded": {
+     "code": "offline",
+     "text": "Offline now, as reported by IonQ."
+    }
+   },
+   {
+    "machine": "ionq-forte-enterprise-1",
+    "machine_name": "Forte Enterprise 1",
+    "route": "aws",
+    "route_name": "AWS Braket",
+    "device": "arn:aws:braket:us-east-1::device/qpu/ionq/Forte-Enterprise-1",
+    "eligible": false,
+    "excluded": {
+     "code": "window_closed",
+     "text": "Outside its execution window; it reopens in about 42 min."
+    }
+   },
+   {
+    "machine": "ionq-forte-enterprise-1",
+    "machine_name": "Forte Enterprise 1",
+    "route": "ionq",
+    "route_name": "IonQ",
+    "device": "qpu.forte-enterprise-1",
+    "eligible": false,
+    "excluded": {
+     "code": "offline",
+     "text": "Offline now, as reported by IonQ."
+    }
+   },
+   {
+    "machine": "iqm-emerald",
+    "machine_name": "Emerald",
+    "route": "aws",
+    "route_name": "AWS Braket",
+    "device": "arn:aws:braket:eu-north-1::device/qpu/iqm/Emerald",
+    "eligible": false,
+    "excluded": {
+     "code": "over_max_cost",
+     "text": "194 cents, over your limit of 1 cent."
+    }
+   },
+   {
+    "machine": "iqm-garnet",
+    "machine_name": "Garnet",
+    "route": "aws",
+    "route_name": "AWS Braket",
+    "device": "arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet",
+    "eligible": false,
+    "excluded": {
+     "code": "over_max_cost",
+     "text": "179 cents, over your limit of 1 cent."
+    }
+   },
+   {
+    "machine": "rigetti-cepheus-1-108q",
+    "machine_name": "Cepheus-1-108Q",
+    "route": "aws",
+    "route_name": "AWS Braket",
+    "device": "arn:aws:braket:us-west-1::device/qpu/rigetti/Cepheus-1-108Q",
+    "eligible": false,
+    "excluded": {
+     "code": "over_max_cost",
+     "text": "74 cents, over your limit of 1 cent."
+    }
+   }
+  ],
+  "attempts": []
+ }
+}

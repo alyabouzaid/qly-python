@@ -274,6 +274,77 @@ for m in cal.metrics:
 `cal.is_live` is False for simulators and for devices whose provider publishes
 no calibration; an empty `metrics` list means "not published", not "perfect".
 
+## Letting Qly choose the machine
+
+Pass `device="auto"` and one preference instead of a device. Qly picks the machine
+and returns a receipt saying what it compared and why, with a sentence written by
+the server. `route()` shows the decision without submitting or charging anything.
+
+```python
+from qly import Qly
+
+client = Qly()
+
+bell = """
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[2];
+h q[0];
+cx q[0], q[1];
+measure q -> c;
+"""
+
+routing = client.route(bell, prefer="price")
+print(routing.because.text)                  # the server's sentence, as sent
+print(routing.chosen.device_name)
+
+for c in routing.candidates:                  # every route, in the order the server sent
+    if c.excluded:
+        print(c.machine, "excluded:", c.excluded.text)
+    else:
+        print(c.machine, c.value, c.unit, c.basis)
+```
+
+To submit, use the same arguments on `run()` or `submit()`. This one runs on a real
+QPU and spends credit, so it is not run in the example above:
+
+```python
+from qly import Qly
+
+client = Qly()
+
+bell = """
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[2];
+h q[0];
+cx q[0], q[1];
+measure q -> c;
+"""
+
+job = client.run(bell, device="auto", prefer="price")
+print(job.device, job.routing.because.text)   # the resolved machine, and why
+```
+
+Things the receipt does and does not say:
+
+- `prefer` is required and has no default. At the moment `"price"` is the only
+  preference the server accepts; it says so for the others.
+- Nothing is scored or ranked, and there is no "best". The candidates are ordered
+  by the quantity you asked for, for this request only.
+- `basis` says whether a price is `"exact"` or an `"estimate"` (with `range_cents`).
+  `vendor_billed` is a fact about what the vendor billed Qly for jobs like this,
+  never a price.
+- `None` means the server did not send the field. Inside `routing.requested`,
+  `None` means you did not specify it.
+- Leave `provider` out; use `providers=[...]` to restrict which are considered.
+  `initial_layout` cannot be combined with `device="auto"`.
+
+If no route is eligible, `route()` and `run()` raise `RoutingRefusedError`, whose
+`.routing` is the whole receipt: every candidate and the reason it was excluded.
+
 ## Errors
 
 | Exception | When |
@@ -281,6 +352,7 @@ no calibration; an empty `metrics` list means "not published", not "perfect".
 | `AuthenticationError` | missing / invalid / revoked key |
 | `InsufficientBalanceError` | not enough credit; `.estimated_cents`, `.balance_cents` |
 | `CircuitError` | the request itself was rejected: unparseable QASM, a gate the device lacks, shots out of range. Subclasses `APIError` |
+| `RoutingRefusedError` | `device="auto"` found no eligible route; `.routing` is the receipt with every candidate's reason. Subclasses `APIError` |
 | `RateLimitError` | too many submissions; `.retry_after` |
 | `JobFailedError` | job ended FAILED/ERROR/CANCELLED; `.job` for detail |
 | `JobTimeoutError` | `run()`/`wait()` timed out |
