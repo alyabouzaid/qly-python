@@ -1,0 +1,168 @@
+{
+ "requested": {
+  "device": "auto",
+  "prefer": "queue",
+  "providers": null,
+  "exclude": null,
+  "max_cost_cents": null,
+  "fallback": null
+ },
+ "decided_at": "2026-09-24T13:38:31.803Z",
+ "candidates": [
+  {
+   "machine": "rigetti-cepheus-1-108q",
+   "machine_name": "Cepheus-1-108Q",
+   "route": "aws",
+   "route_name": "AWS Braket",
+   "device": "arn:aws:braket:us-west-1::device/qpu/rigetti/Cepheus-1-108Q",
+   "eligible": true,
+   "value": 0,
+   "unit": "tasks",
+   "basis": "reported",
+   "price_cents": 74,
+   "price_basis": "exact",
+   "billed_by": "qly"
+  },
+  {
+   "machine": "iqm-garnet",
+   "machine_name": "Garnet",
+   "route": "aws",
+   "route_name": "AWS Braket",
+   "device": "arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet",
+   "eligible": true,
+   "value": 0,
+   "unit": "tasks",
+   "basis": "reported",
+   "price_cents": 179,
+   "price_basis": "exact",
+   "billed_by": "qly"
+  },
+  {
+   "machine": "iqm-emerald",
+   "machine_name": "Emerald",
+   "route": "aws",
+   "route_name": "AWS Braket",
+   "device": "arn:aws:braket:eu-north-1::device/qpu/iqm/Emerald",
+   "eligible": true,
+   "value": 0,
+   "unit": "tasks",
+   "basis": "reported",
+   "price_cents": 194,
+   "price_basis": "exact",
+   "billed_by": "qly"
+  },
+  {
+   "machine": "aqt-ibex-q1",
+   "machine_name": "IBEX Q1",
+   "route": "aws",
+   "route_name": "AWS Braket",
+   "device": "arn:aws:braket:eu-north-1::device/qpu/aqt/Ibex-Q1",
+   "eligible": false,
+   "excluded": {
+    "code": "window_closed",
+    "text": "Outside its execution window; it reopens in about 18.4 h."
+   }
+  },
+  {
+   "machine": "ibm-fez",
+   "machine_name": "IBM Fez",
+   "route": "ibm",
+   "route_name": "IBM Quantum",
+   "device": "ibm_fez",
+   "eligible": false,
+   "excluded": {
+    "code": "queue_not_reported",
+    "text": "IBM Quantum does not report a queue for IBM Fez, so it cannot be compared on queue."
+   }
+  },
+  {
+   "machine": "ibm-kingston",
+   "machine_name": "IBM Kingston",
+   "route": "ibm",
+   "route_name": "IBM Quantum",
+   "device": "ibm_kingston",
+   "eligible": false,
+   "excluded": {
+    "code": "queue_not_reported",
+    "text": "IBM Quantum does not report a queue for IBM Kingston, so it cannot be compared on queue."
+   }
+  },
+  {
+   "machine": "ibm-marrakesh",
+   "machine_name": "IBM Marrakesh",
+   "route": "ibm",
+   "route_name": "IBM Quantum",
+   "device": "ibm_marrakesh",
+   "eligible": false,
+   "excluded": {
+    "code": "queue_not_reported",
+    "text": "IBM Quantum does not report a queue for IBM Marrakesh, so it cannot be compared on queue."
+   }
+  },
+  {
+   "machine": "ionq-forte-1",
+   "machine_name": "Forte 1",
+   "route": "aws",
+   "route_name": "AWS Braket",
+   "device": "arn:aws:braket:us-east-1::device/qpu/ionq/Forte-1",
+   "eligible": false,
+   "excluded": {
+    "code": "offline",
+    "text": "Offline now, as reported by AWS Braket."
+   }
+  },
+  {
+   "machine": "ionq-forte-1",
+   "machine_name": "Forte 1",
+   "route": "ionq",
+   "route_name": "IonQ",
+   "device": "qpu.forte-1",
+   "eligible": false,
+   "excluded": {
+    "code": "offline",
+    "text": "Offline now, as reported by IonQ."
+   }
+  },
+  {
+   "machine": "ionq-forte-enterprise-1",
+   "machine_name": "Forte Enterprise 1",
+   "route": "aws",
+   "route_name": "AWS Braket",
+   "device": "arn:aws:braket:us-east-1::device/qpu/ionq/Forte-Enterprise-1",
+   "eligible": false,
+   "excluded": {
+    "code": "window_closed",
+    "text": "Outside its execution window; it reopens in about 21 min."
+   }
+  },
+  {
+   "machine": "ionq-forte-enterprise-1",
+   "machine_name": "Forte Enterprise 1",
+   "route": "ionq",
+   "route_name": "IonQ",
+   "device": "qpu.forte-enterprise-1",
+   "eligible": false,
+   "excluded": {
+    "code": "offline",
+    "text": "Offline now, as reported by IonQ."
+   }
+  }
+ ],
+ "attempts": [],
+ "chosen": {
+  "machine": "rigetti-cepheus-1-108q",
+  "provider": "aws",
+  "device": "arn:aws:braket:us-west-1::device/qpu/rigetti/Cepheus-1-108Q",
+  "device_name": "Cepheus-1-108Q",
+  "initial_layout": null
+ },
+ "because": {
+  "metric": "queue",
+  "value": 0,
+  "unit": "tasks",
+  "basis": "reported",
+  "source": "provider queue depth (GET /api/v1/devices)",
+  "tie": true,
+  "text": "Fewest tasks queued ahead among 3 eligible routes: none on Cepheus-1-108Q through AWS Braket, as the provider reported when this was decided. It will cost 74 cents. Tied on queue with Garnet through AWS Braket; chosen by the lower charge."
+ }
+}

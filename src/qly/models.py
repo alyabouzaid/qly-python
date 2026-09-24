@@ -379,7 +379,10 @@ class Candidate:
     """One route to one machine, as compared for this request.
 
     ``eligible`` is True exactly when ``excluded`` is None, and a value is present
-    exactly when eligible; the server enforces both. ``vendor_billed`` is a fact
+    exactly when eligible; the server enforces both. ``unit`` and ``basis`` say
+    what ``value`` is: cents for ``prefer="price"``, tasks queued ahead as
+    reported by the provider for ``prefer="queue"``. An excluded route carries
+    one reason, the first in the server's order, not every reason. ``vendor_billed`` is a fact
     about what the vendor has billed Qly for jobs like this. It is never a price
     and is never what ``value`` was computed from.
     """
@@ -397,6 +400,10 @@ class Candidate:
     range_cents: Optional[List[int]] = None
     #: "qly" (your Qly credit) or "vendor_account" (billed elsewhere, to your own account).
     billed_by: Optional[str] = None
+    #: With prefer="queue", ``value`` is the queue depth and these two carry the
+    #: charge, which is what breaks a tie on queue. Absent for other preferences.
+    price_cents: Optional[float] = None
+    price_basis: Optional[str] = None
     vendor_billed: Optional[Dict[str, Any]] = None
     excluded: Optional[Exclusion] = None
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
@@ -415,6 +422,8 @@ class Candidate:
             basis=d.get("basis"),
             range_cents=_opt_int_list(d.get("range_cents")),
             billed_by=d.get("billed_by"),
+            price_cents=d.get("price_cents"),
+            price_basis=d.get("price_basis"),
             vendor_billed=d.get("vendor_billed"),
             excluded=Exclusion.from_json(d.get("excluded")),
             raw=d,

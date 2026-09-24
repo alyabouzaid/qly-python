@@ -87,7 +87,7 @@ def test_route_passes_every_option_through_unchanged():
 @responses.activate
 def test_a_missing_prefer_is_the_servers_to_refuse_not_the_clients():
     """No default, no client-side check: the user sees the server's own sentence."""
-    text = 'device "auto" needs prefer: "price". (prefer "queue" and "quality" are not available yet.)'
+    text = 'device "auto" needs prefer: "price" or "queue". (prefer "quality" is not available yet.)'
     responses.add(responses.POST, f"{BASE}/api/v1/route", json={"error": text}, status=400)
     with pytest.raises(CircuitError) as exc:
         make_client().route(BELL)
@@ -170,6 +170,33 @@ def test_absent_is_none_and_requested_none_means_not_specified():
     assert Routing.from_json(None) is None
 
 
+# -- prefer="queue": a different unit, and the price kept apart ---------------------
+
+
+def test_a_queue_receipt_says_what_its_value_is_and_keeps_the_price_separate():
+    """Captured from qly.app 2026-09-24. value is tasks queued, not cents."""
+    r = Routing.from_json(fixture("route_queue_ok.json"))
+    assert r.requested.prefer == "queue"
+    assert r.requested.fallback is None  # not sent, so not specified
+    eligible = [c for c in r.candidates if c.eligible]
+    assert eligible
+    for c in eligible:
+        assert c.unit == "tasks" and c.basis == "reported"
+        # The charge that breaks a tie is its own field, never folded into value.
+        assert c.price_cents is not None and c.price_basis
+    for c in r.candidates:
+        assert c.eligible == (c.excluded is None)
+        if not c.eligible:
+            assert c.value is None and c.price_cents is None
+    # The server's sentence names the tie-break; it is shown as sent.
+    assert r.because.text == fixture("route_queue_ok.json")["because"]["text"]
+
+
+def test_a_price_receipt_has_no_queue_fields():
+    r = Routing.from_json(fixture("route_price_ok.json"))
+    assert all(c.price_cents is None and c.price_basis is None for c in r.candidates)
+
+
 # -- refusal ---------------------------------------------------------------------
 
 
@@ -216,7 +243,7 @@ def test_a_409_without_the_routing_code_is_an_ordinary_api_error():
 @pytest.mark.parametrize(
     "text",
     [
-        'prefer "queue" is not available yet. Available now: prefer "price".',
+        'prefer "quality" is not available yet. Available now: prefer "price" or "queue".',
         'provider cannot be combined with device "auto". To restrict which providers are considered, pass providers: ["ibm", ...].',
         'fallback "next" is not available yet. Omit fallback, or pass fallback: "none".',
         'prefer, providers, exclude, max_cost_cents and fallback only apply with device "auto".',

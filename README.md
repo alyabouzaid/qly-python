@@ -330,8 +330,8 @@ print(job.device, job.routing.because.text)   # the resolved machine, and why
 
 Things the receipt does and does not say:
 
-- `prefer` is required and has no default. At the moment `"price"` is the only
-  preference the server accepts; it says so for the others.
+- `prefer` is required and has no default. The server says which preferences it
+  accepts at the moment, and which it does not yet, in its error message.
 - Nothing is scored or ranked, and there is no "best". The candidates are ordered
   by the quantity you asked for, for this request only.
 - `basis` says whether a price is `"exact"` or an `"estimate"` (with `range_cents`).
